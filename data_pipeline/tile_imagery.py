@@ -54,6 +54,13 @@ def load_scene_stack(time_label: str):
                 H, W = src.height, src.width
             arrays.append(arr)
 
+    # 10m bands (B02/B03/B04) resampled to 20m can differ by ±1 px from
+    # native 20m bands (B8A/B11/B12) due to rounding — crop to minimum.
+    min_h = min(a.shape[0] for a in arrays)
+    min_w = min(a.shape[1] for a in arrays)
+    arrays = [a[:min_h, :min_w] for a in arrays]
+    H, W = min_h, min_w
+
     return np.stack(arrays, axis=0), H, W  # (C, H, W)
 
 

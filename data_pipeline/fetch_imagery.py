@@ -77,9 +77,27 @@ def find_best_scene(catalog, time_label: str, date_range: tuple,
 # COG windowed read
 # ---------------------------------------------------------------------------
 
-def read_band_window(asset_href: str, bbox_wgs84: list, target_res_m: int):
+def _bbox_out_shape(bbox_wgs84: list, target_res_m: int) -> tuple[int, int]:
+    """
+    Compute (out_h, out_w) from the geographic bbox extent so that every band
+    — regardless of its native resolution — is written at the same pixel size.
+    Uses a simple equirectangular approximation (fine for a small 0.3° bbox).
+    """
+    import math
+    west, south, east, north = bbox_wgs84
+    lat_c = (south + north) / 2
+    m_per_deg_lat = 111_320.0
+    m_per_deg_lon = 111_320.0 * math.cos(math.radians(lat_c))
+    out_h = max(1, int(round((north - south) * m_per_deg_lat / target_res_m)))
+    out_w = max(1, int(round((east  - west)  * m_per_deg_lon / target_res_m)))
+    return out_h, out_w
+
+
+def read_band_window(asset_href: str, bbox_wgs84: list, target_res_m: int,
+                     out_shape: tuple[int, int] | None = None):
     """
     Read one COG asset clipped to bbox_wgs84, resampled to target_res_m metres.
+    Pass out_shape=(H, W) to force a specific output size (keeps all bands identical).
     Returns (ndarray H×W, rasterio profile dict).
     """
     with rasterio.open(asset_href) as src:
@@ -89,10 +107,13 @@ def read_band_window(asset_href: str, bbox_wgs84: list, target_res_m: int):
         window = window_from_bounds(west, south, east, north, src.transform)
         window = window.round_lengths().round_offsets()
 
-        native_res = abs(float(src.transform.a))
-        scale = native_res / target_res_m
-        out_h = max(1, int(round(window.height * scale)))
-        out_w = max(1, int(round(window.width  * scale)))
+        if out_shape is not None:
+            out_h, out_w = out_shape
+        else:
+            native_res = abs(float(src.transform.a))
+            scale = native_res / target_res_m
+            out_h = max(1, int(round(window.height * scale)))
+            out_w = max(1, int(round(window.width  * scale)))
 
         data = src.read(
             1,
@@ -127,6 +148,11 @@ def download_scene(item, time_label: str, bbox: list,
     scene_dir = out_dir / time_label
     scene_dir.mkdir(parents=True, exist_ok=True)
 
+    # Compute a single canonical output shape from the bbox extent so that
+    # 10 m and 20 m native bands all land on the same pixel grid.
+    ref_shape = _bbox_out_shape(bbox, target_res_m)
+    print(f"    Reference output shape: {ref_shape[0]}×{ref_shape[1]} px")
+
     saved = {}
     for band in bands + ["SCL"]:
         if band not in item.assets:
@@ -135,7 +161,7 @@ def download_scene(item, time_label: str, bbox: list,
 
         href = item.assets[band].href
         print(f"    {band} ... ", end="", flush=True)
-        data, profile = read_band_window(href, bbox, target_res_m)
+        data, profile = read_band_window(href, bbox, target_res_m, out_shape=ref_shape)
 
         out_path = scene_dir / f"{band}.tif"
         with rasterio.open(out_path, "w", **profile) as dst:
