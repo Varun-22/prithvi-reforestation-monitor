@@ -248,11 +248,11 @@ Opens at `http://localhost:8501`. Three tabs:
 
 | Model | F1 | IoU | Precision | Recall |
 |---|---|---|---|---|
-| NDVI Baseline | 0.42* | 0.27* | 0.38* | 0.47* |
-| Random Forest | 0.51* | 0.34* | 0.55* | 0.48* |
-| Prithvi Fine-tuned | TBD | TBD | TBD | TBD |
+| NDVI Baseline | 0.9802 | 0.9612 | 0.9873 | 0.9732 |
+| Random Forest | 0.9891 | 0.9784 | 0.9922 | 0.9861 |
+| Prithvi Fine-tuned | **0.8431** | **0.7288** | 0.8160 | 0.8720 |
 
-*Placeholder values shown for baselines. Run `python -m evaluation.evaluate` after completing Steps 1–3 to populate with real numbers.*
+Evaluated on the held-out validation split (13 tiles). Baselines use NDVI pseudo-labels as ground truth — the same signal Prithvi was trained to predict — so their high scores reflect label consistency, not independent ground truth. Prithvi was trained for 30 epochs on a T4 GPU (Kaggle free tier).
 
 ![Sample predictions](assets/sample_predictions.png)
 
