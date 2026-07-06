@@ -148,11 +148,13 @@ class ChangeDetectionHead(nn.Module):
     def __init__(self, in_channels: int = 768):
         super().__init__()
         self.proj = nn.Conv2d(in_channels, 256, 1)
-        self.up1  = self._up_block(256, 128)   # 14  → 28
-        self.up2  = self._up_block(128,  64)   # 28  → 56
-        self.up3  = self._up_block( 64,  32)   # 56  → 112
-        self.up4  = self._up_block( 32,  16)   # 112 → 224
-        self.out  = nn.Conv2d(16, 1, 1)        # logit
+        self.ups  = nn.ModuleList([
+            self._up_block(256, 128),   # 14  → 28
+            self._up_block(128,  64),   # 28  → 56
+            self._up_block( 64,  32),   # 56  → 112
+            self._up_block( 32,  16),   # 112 → 224
+        ])
+        self.out  = nn.Conv2d(16, 1, 1)
 
     @staticmethod
     def _up_block(c_in: int, c_out: int) -> nn.Sequential:
@@ -165,8 +167,8 @@ class ChangeDetectionHead(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.proj(x)
-        x = self.up1(x); x = self.up2(x)
-        x = self.up3(x); x = self.up4(x)
+        for up in self.ups:
+            x = up(x)
         return self.out(x)
 
 
