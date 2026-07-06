@@ -66,6 +66,13 @@ class PrithviEncoder(nn.Module):
                     break
             cleaned[k] = v
 
+        # Prithvi patch_embed uses a 3D temporal conv (768, 6, 1, 16, 16);
+        # timm ViT expects a 2D conv (768, 6, 16, 16) — squeeze the T=1 dim.
+        if "patch_embed.proj.weight" in cleaned:
+            w = cleaned["patch_embed.proj.weight"]
+            if w.ndim == 5:
+                cleaned["patch_embed.proj.weight"] = w.squeeze(2)
+
         # pos_embed: Prithvi trained with T=3 frames → (1, 3*196+1, 768).
         # timm ViT expects (1, 197, 768).  Take CLS + first 196 spatial tokens.
         expected_pe_shape = self.backbone.pos_embed.shape  # (1, 197, 768)
